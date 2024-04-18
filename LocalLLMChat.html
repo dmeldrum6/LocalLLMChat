@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>LLM Access</title>
+		<script>
+			// Constant URL for API endpoint
+			const API_URL = "http://localhost:1234/v1/chat/completions";
+			// Constant for API key
+			const API_KEY = "not-needed";
+
+			// Ensure the global `messages` array exists on the window object to store chat history
+			if (!window.messages) {
+				window.messages = [];
+			}
+
+			let controller = null; // Store the AbortController instance for managing fetch cancellations
+
+			// Asynchronous function to handle the generation of responses from an API
+			async function generate(){
+			// UI elements from the page
+			const promptInput = document.getElementById("promptInput");
+			const generateBtn = document.getElementById("generateBtn");
+			const stopBtn = document.getElementById("stopBtn");
+			const resultText = document.getElementById("resultText");
+			var apiResponse; // To accumulate the API response
+
+			// Check for user input, alert and exit if empty
+			if (!promptInput.value) {
+				alert("Please enter a prompt.");
+				return;
+			}
+
+			// Save user input in global messages array
+			window.messages.push({ role: "user", content: promptInput.value });
+
+			// Toggle button states to prevent multiple requests
+			generateBtn.disabled = true;
+			stopBtn.disabled = false;
+
+			// Display the user's prompt in the results area
+			resultText.innerHTML += "<br/><br/><span style='color: lightblue;'>Prompt: " + promptInput.value + "</span><br/><br/>";
+
+			// Instantiate a new AbortController
+			controller = new AbortController();
+			const signal = controller.signal;
+
+			try {
+				// Make a POST request to the API
+				const response = await fetch(API_URL, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${API_KEY}`,
+						},
+					body: JSON.stringify({
+						model: "local-model",
+						temperature: 0.5,
+						messages: window.messages,
+						max_tokens: 8000,
+						stream: true, // Indicates that the server will stream responses
+						}),
+					signal, // Attach the abort signal
+					});
+
+				// Clear prompt input after sending
+				promptInput.value = "";
+
+				// Stream processing of the API response
+				if (response.ok) {
+					const reader = response.body?.pipeThrough(new TextDecoderStream()).getReader();
+					if (!reader) return;
+				
+					while (true) {
+						const { value, done } = await reader.read();
+						if (done) break; // Exit the loop if reading is complete
+						let dataDone = false;
+						const arr = value.split('\n'); // Split streamed data into lines
+						arr.forEach((data) => {
+							if (data.length === 0 || data.startsWith(':')) return; // Ignore empty and comment lines
+							if (data === 'data: [DONE]') {
+								dataDone = true;
+								return;
+							}
+							const json = JSON.parse(data.substring(6)); // Parse each JSON data line
+							if (json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content) {
+								var content = json.choices[0].delta.content;
+								if (typeof content !== 'undefined' && content !== null) {
+									resultText.innerHTML += content;
+									apiResponse += content;
+								}
+							}
+						});
+						if (dataDone) break;   
+					}
+				} else {
+					console.error('API request failed with status:', response.status);
+					resultText.innerHTML += 'Failed to fetch data.';
+				}
+
+				// Record the assistant's response for future interactions
+				window.messages.push({ role: 'assistant', content: apiResponse });
+				   
+				// Convert markdown code blocks to HTML <pre><code> elements
+				let regex = /```(\w+)?\n?(.*?)```/gs;
+				resultText.innerHTML = resultText.innerHTML.replace(regex, (match, lang, code) => {
+					const languageClass = lang ? ` class="language-${lang}"` : '';
+					return `<pre><code${languageClass}>${code}</code></pre>`;
+				});
+
+				// Indicate the end of the API response
+				resultText.innerHTML += "<br/><span style='color: gray;'>[End of Response]</span><br/><br/>";
+				apiResponse = "";
+			} catch (error) {
+				// Handle errors in the fetch operation
+				if (signal.aborted) {
+					resultText.innerText = "Request aborted.";
+				} else {
+					console.error("Error:", error);
+					resultText.innerText = "Error occurred while generating.";
+				}
+			} finally {
+				// Restore button states and reset the AbortController
+				generateBtn.disabled = false;
+				stopBtn.disabled = true;
+				controller = null;
+			}};
+
+			// Function to abort the ongoing fetch request
+			function stop(){
+			if (controller) {
+				controller.abort();
+				controller = null;
+			}};
+
+			// Function to clear user input and reset the results text
+			function clearInput(){
+				document.getElementById("promptInput").value = "";
+				document.getElementById("resultText").innerText = "How can I help you today?";
+			};
+		</script>
+		
+		<style>
+			body {
+				font-family: 'Arial', sans-serif;
+				background-color: #121212;
+				color: #ffffff;           
+				margin: 0;
+				padding: 0;
+				display: flex;
+				justify-content: center;
+				align-items: center;
+				height: 100vh;
+			}
+			.container {
+				width: 100%;
+				background-color: #202225;
+				border-radius: 8px;
+				padding: 20px;
+			}
+			.header {
+				width: 100%;
+				display: flex;
+				align-items: center;
+				padding-bottom: 20px;
+				border-bottom: 1px solid #4f545c;
+				margin-bottom: 20px;
+			}
+			.header .circle {
+				width: 50px;
+				height: 50px;
+				background-color: #5865F2;
+				border-radius: 10%;
+				margin-right: 10px;
+			}
+			.header h1 {
+				color: #ffffff;
+				margin: 0;
+			}
+			.chat {
+				min-height: 500px;
+				max-height: 500px;
+				overflow-y: auto; /* Enables vertical scrolling */
+				background-color: #2f3136;
+				padding: 20px;
+				border-radius: 8px;
+				margin-bottom: 10px;
+				border-bottom: 1px solid #4f545c;
+			}
+			.input-area {
+				float: left;
+				display: flex;
+				width: 100%;
+				padding-bottom: 10px;
+				border-bottom: 1px solid #4f545c;
+			}
+			.input-area input {
+				max-width: 75%;
+				width: 75%;
+				flex-grow: 1;
+				padding: 10px;
+				margin-right: 5px;
+				border: none;
+				border-radius: 8px;
+			}
+			#generateBtn {
+				padding: 5px 18px;
+				background-color: #5865F2;
+				color: #ffffff;
+				margin-left: 5px;
+				border: none;
+				border-radius: 8px;
+				cursor: pointer;
+			}
+			#stopBtn {
+				padding: 5px 18px;
+				background-color: #AA4A44;
+				color: #ffffff;
+				margin-left: 5px;
+				border: none;
+				border-radius: 8px;
+				cursor: pointer;
+			}
+			#clearBtn {
+				padding: 5px 18px;
+				background-color: #004AAA;
+				color: #ffffff;
+				margin-left: 5px;
+				border: none;
+				border-radius: 8px;
+				cursor: pointer;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container">
+			<div class="header">
+				<h1>Local Chat</h1>
+			</div>
+			<div class="chat">
+				<div id="resultText">How can I help you today?</div>
+			</div>
+			<div class="input-area">
+				<input id="promptInput" type="text" placeholder="Enter prompt..."/>
+				<button id="generateBtn" onclick="generate()">Generate</button>
+				<button id="stopBtn" onclick="stop()">Stop</button>
+				<button id="clearBtn" onclick="clearInput()">Clear Context</button>
+			</div>
+		</div>
+	</body>
+</html>
