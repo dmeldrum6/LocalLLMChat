@@ -1,5 +1,7 @@
 # LocalLLMChat V2!
-LocalLLMv2.png
+[LocalLLMv2.png](https://github.com/dmeldrum6/LocalLLMChat/blob/main/LocalLLMv2.png?raw=true)
+
+Since people are actually using this I have added a v2 - it features updated UI / Themes / Local Storage. I left the original as they're just single pages.
 
 
 # LocalLLMChat
