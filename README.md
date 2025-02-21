@@ -1,3 +1,7 @@
+# LocalLLMChat V2!
+LocalLLMv2.png
+
+
 # LocalLLMChat
 Single HTML Page access to an OpenAI API compatible Local LLM
 ![local_chat](https://github.com/dmeldrum6/LocalLLMChat/assets/38048135/9b8d2ca2-afe7-4fbf-9e30-0f65ca7665d1)
